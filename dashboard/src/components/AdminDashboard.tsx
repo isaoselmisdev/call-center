@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LogOut, Shield, Users, Phone, Activity } from 'lucide-react'
+import { LogOut, Shield, Users, Phone, Activity, Trash2 } from 'lucide-react'
 import CreateAgentForm from './CreateAgentForm'
 import type { Admin } from '../types'
 
@@ -33,6 +33,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   })
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'overview' | 'create'>('overview')
+  const [deletingAgent, setDeletingAgent] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   useEffect(() => {
     fetchDashboardData()
@@ -82,6 +84,36 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     await fetchDashboardData()
     // Switch back to overview tab
     setTimeout(() => setActiveTab('overview'), 1000)
+  }
+
+  const handleDeleteAgent = async (agentId: string) => {
+    if (deletingAgent) return // Prevent multiple deletes at once
+
+    setDeletingAgent(agentId)
+    
+    try {
+      const response = await fetch(`http://localhost:8082/api/v1/agents/${agentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${admin.token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        // Refresh the agents list
+        await fetchDashboardData()
+        setConfirmDelete(null)
+      } else {
+        alert(data.message || 'Failed to delete agent')
+      }
+    } catch (err) {
+      console.error('Failed to delete agent:', err)
+      alert('Failed to delete agent. Please try again.')
+    } finally {
+      setDeletingAgent(null)
+    }
   }
 
   return (
@@ -242,6 +274,9 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Completed
                         </th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -269,6 +304,37 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {agent.completed_calls}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            {confirmDelete === agent.agent_id ? (
+                              <div className="flex items-center justify-end space-x-2">
+                                <span className="text-xs text-gray-500">Delete?</span>
+                                <button
+                                  onClick={() => handleDeleteAgent(agent.agent_id)}
+                                  disabled={deletingAgent === agent.agent_id}
+                                  className="text-red-600 hover:text-red-900 font-medium disabled:opacity-50"
+                                >
+                                  {deletingAgent === agent.agent_id ? 'Deleting...' : 'Yes'}
+                                </button>
+                                <button
+                                  onClick={() => setConfirmDelete(null)}
+                                  disabled={deletingAgent === agent.agent_id}
+                                  className="text-gray-600 hover:text-gray-900 font-medium disabled:opacity-50"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmDelete(agent.agent_id)}
+                                disabled={agent.status === 'inactive'}
+                                className="text-red-600 hover:text-red-900 disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center"
+                                title={agent.status === 'inactive' ? 'Agent already inactive' : 'Delete agent'}
+                              >
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}

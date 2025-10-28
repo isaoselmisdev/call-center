@@ -193,7 +193,6 @@ func (h *AgentHandler) CompleteCall(c *fiber.Ctx) error {
 
 func (h *AgentHandler) CreateAgent(c *fiber.Ctx) error {
 	var req struct {
-		AgentID   string `json:"agent_id"`
 		AgentName string `json:"agent_name"`
 		Password  string `json:"password"`
 	}

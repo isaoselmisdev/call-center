@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { UserPlus, User, Lock, IdCard } from 'lucide-react'
+import { UserPlus, User, Lock } from 'lucide-react'
 
 interface CreateAgentFormProps {
   onCreateAgent: () => Promise<void>
@@ -7,7 +7,6 @@ interface CreateAgentFormProps {
 }
 
 export default function CreateAgentForm({ onCreateAgent, token }: CreateAgentFormProps) {
-  const [agentId, setAgentId] = useState('')
   const [agentName, setAgentName] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,7 +27,6 @@ export default function CreateAgentForm({ onCreateAgent, token }: CreateAgentFor
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          agent_id: agentId,
           agent_name: agentName,
           password,
         }),
@@ -38,7 +36,6 @@ export default function CreateAgentForm({ onCreateAgent, token }: CreateAgentFor
 
       if (response.ok && data.success) {
         setSuccess(true)
-        setAgentId('')
         setAgentName('')
         setPassword('')
         
@@ -92,27 +89,6 @@ export default function CreateAgentForm({ onCreateAgent, token }: CreateAgentFor
 
         <div className="space-y-5">
           <div>
-            <label htmlFor="agentId" className="block text-sm font-medium text-gray-700 mb-2">
-              Agent ID <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <IdCard className="h-5 w-5 text-gray-400" />
-              </div>
-              <input
-                id="agentId"
-                type="text"
-                value={agentId}
-                onChange={(e) => setAgentId(e.target.value)}
-                required
-                className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent transition-all"
-                placeholder="e.g., agent001"
-              />
-            </div>
-            <p className="mt-1 text-xs text-gray-500">Unique identifier for the agent</p>
-          </div>
-
-          <div>
             <label htmlFor="agentName" className="block text-sm font-medium text-gray-700 mb-2">
               Agent Name <span className="text-red-500">*</span>
             </label>
@@ -130,7 +106,7 @@ export default function CreateAgentForm({ onCreateAgent, token }: CreateAgentFor
                 placeholder="e.g., John Doe"
               />
             </div>
-            <p className="mt-1 text-xs text-gray-500">Full name of the agent</p>
+            <p className="mt-1 text-xs text-gray-500">Full name of the agent (ID will be auto-generated)</p>
           </div>
 
           <div>
@@ -159,7 +135,6 @@ export default function CreateAgentForm({ onCreateAgent, token }: CreateAgentFor
             <button
               type="button"
               onClick={() => {
-                setAgentId('')
                 setAgentName('')
                 setPassword('')
                 setError('')
