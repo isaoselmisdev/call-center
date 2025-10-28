@@ -1,0 +1,154 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: callcenter-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: callcenter
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: callcenter-redis
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka (KRaft mode - no Zookeeper)
+  kafka:
+    image: apache/kafka:latest
+    container_name: callcenter-kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: true
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kowl - Kafka UI
+  kowl:
+    image: quay.io/cloudhut/kowl:latest
+    container_name: callcenter-kowl
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_CLIENT_LOGGING: "false"
+    depends_on:
+      - kafka
+    restart: unless-stopped
+
+  # Call Center API
+  callcenter-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.callcenter-api
+    container_name: callcenter-api
+    ports:
+      - "8081:8081"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=callcenter
+      - DB_PORT=5432
+      - KAFKA_BROKERS=kafka:9092
+      - CALL_CENTER_PORT=8081
+    depends_on:
+      - postgres
+      - kafka
+    restart: unless-stopped
+
+  # Distributor Service
+  distributor:
+    build:
+      context: .
+      dockerfile: Dockerfile.distributor
+    container_name: distributor
+    ports:
+      - "8083:8083"
+    environment:
+      - KAFKA_BROKERS=kafka:9092
+      - KAFKA_GROUP_ID=distributor-group
+      - REDIS_ADDR=redis:6379
+      - DISTRIBUTOR_PORT=8083
+    depends_on:
+      - kafka
+      - redis
+    restart: unless-stopped
+
+  # Customer Agent API
+  customer-agent-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.customer-agent-api
+    container_name: customer-agent-api
+    ports:
+      - "8082:8082"
+    environment:
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=callcenter
+      - DB_PORT=5432
+      - KAFKA_BROKERS=kafka:9092
+      - JWT_SECRET=your-secret-key-change-in-production-123456
+      - ADMIN_PASSWORD=admin123
+      - CUSTOMER_AGENT_PORT=8082
+    depends_on:
+      - postgres
+      - kafka
+    restart: unless-stopped
+
+  # Dashboard (React Frontend)
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: callcenter-dashboard
+    ports:
+      - "3000:80"
+    depends_on:
+      - callcenter-api
+      - customer-agent-api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
